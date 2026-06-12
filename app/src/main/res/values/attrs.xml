@@ -1,0 +1,13 @@
+<resources>
+    <attr name="colorBackground" format="reference|color" />
+    <attr name="colorSurface" format="reference|color" />
+    <attr name="white63" format="reference|color" />
+    <attr name="surfaceVariant" format="reference|color" />
+    <attr name="surfaceAlt" format="reference|color" />
+    <attr name="surfaceTranslucent" format="reference|color" />
+    <attr name="white15" format="reference|color" />
+    <attr name="white20" format="reference|color" />
+    <attr name="textSecondary" format="reference|color" />
+    <attr name="textDisabled" format="reference|color" />
+    <attr name="dividerColor" format="reference|color" />
+</resources>

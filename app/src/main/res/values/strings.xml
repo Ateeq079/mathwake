@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">MathWake</string>
+    <string name="channel_alarm_name">MathWake Alarms</string>
+    <string name="channel_alarm_description">Ringing alarms that require solving math to dismiss.</string>
+</resources>

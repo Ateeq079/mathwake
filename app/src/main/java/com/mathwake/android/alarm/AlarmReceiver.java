@@ -26,6 +26,7 @@ public class AlarmReceiver extends BroadcastReceiver {
         }
         boolean preview = intent.getBooleanExtra(AlarmScheduler.EXTRA_PREVIEW, false);
         boolean isSnooze = intent.getBooleanExtra(AlarmScheduler.EXTRA_IS_SNOOZE, false);
+        int snoozeCount = intent.getIntExtra(AlarmScheduler.EXTRA_SNOOZE_COUNT, 0);
         AlarmRepository repository = new AlarmRepository(context);
 
         // Only reschedule or disable the alarm for non-preview, non-snooze firings.
@@ -38,6 +39,6 @@ public class AlarmReceiver extends BroadcastReceiver {
             }
         }
 
-        AlarmRingingService.start(context, json, preview);
+        AlarmRingingService.start(context, json, preview, snoozeCount);
     }
 }

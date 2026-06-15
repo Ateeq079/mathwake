@@ -16,6 +16,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
@@ -68,6 +69,7 @@ public class AlarmRingingService extends Service {
         }
 
         boolean preview = intent.getBooleanExtra(AlarmScheduler.EXTRA_PREVIEW, false);
+        int snoozeCount = intent.getIntExtra(AlarmScheduler.EXTRA_SNOOZE_COUNT, 0);
         AlarmModel alarm;
         try {
             alarm = AlarmModel.fromJson(new JSONObject(json));
@@ -75,14 +77,14 @@ public class AlarmRingingService extends Service {
             return START_NOT_STICKY;
         }
         currentAlarmId = alarm.getId();
-        Notification notification = buildNotification(alarm, json, preview);
+        Notification notification = buildNotification(alarm, json, preview, snoozeCount);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(alarm.getId(), notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
         } else {
             startForeground(alarm.getId(), notification);
         }
         startRinging(alarm);
-        openRingScreen(json, preview);
+        openRingScreen(json, preview, snoozeCount);
         return START_STICKY;
     }
 
@@ -92,12 +94,13 @@ public class AlarmRingingService extends Service {
         super.onDestroy();
     }
 
-    private Notification buildNotification(AlarmModel alarm, String json, boolean preview) {
+    private Notification buildNotification(AlarmModel alarm, String json, boolean preview, int snoozeCount) {
         ensureNotificationChannel(this);
 
         Intent ringIntent = new Intent(this, AlarmRingActivity.class)
                 .putExtra(AlarmScheduler.EXTRA_ALARM_JSON, json)
                 .putExtra(AlarmScheduler.EXTRA_PREVIEW, preview)
+                .putExtra(AlarmScheduler.EXTRA_SNOOZE_COUNT, snoozeCount)
                 .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
         PendingIntent fullScreenIntent = PendingIntent.getActivity(
@@ -121,10 +124,11 @@ public class AlarmRingingService extends Service {
                 .build();
     }
 
-    private void openRingScreen(String json, boolean preview) {
+    private void openRingScreen(String json, boolean preview, int snoozeCount) {
         Intent intent = new Intent(this, AlarmRingActivity.class)
                 .putExtra(AlarmScheduler.EXTRA_ALARM_JSON, json)
                 .putExtra(AlarmScheduler.EXTRA_PREVIEW, preview)
+                .putExtra(AlarmScheduler.EXTRA_SNOOZE_COUNT, snoozeCount)
                 .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         startActivity(intent);
     }
@@ -174,16 +178,22 @@ public class AlarmRingingService extends Service {
                         .setUsage(AudioAttributes.USAGE_ALARM)
                         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build());
+                // Keep the CPU running so the alarm keeps sounding with the screen off.
+                player.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
                 player.setDataSource(this, sound);
                 player.setLooping(true);
-                player.prepare();
-
-                // Start with low volume for gradual ramp
-                player.setVolume(VOLUME_START, VOLUME_START);
-                player.start();
-
-                // Gradual volume increase
-                startVolumeRamp();
+                // Prepare off the main thread: a custom ringtone on slow storage can otherwise
+                // block onStartCommand long enough to ANR.
+                player.setOnPreparedListener(mp -> {
+                    mp.setVolume(VOLUME_START, VOLUME_START);
+                    mp.start();
+                    startVolumeRamp();
+                });
+                player.setOnErrorListener((mp, what, extra) -> {
+                    stopRinging();
+                    return true;
+                });
+                player.prepareAsync();
             } catch (Exception ignored) {
                 player = null;
             }
@@ -256,10 +266,11 @@ public class AlarmRingingService extends Service {
         }
     }
 
-    public static void start(Context context, String alarmJson, boolean preview) {
+    public static void start(Context context, String alarmJson, boolean preview, int snoozeCount) {
         Intent intent = new Intent(context, AlarmRingingService.class)
                 .putExtra(AlarmScheduler.EXTRA_ALARM_JSON, alarmJson)
-                .putExtra(AlarmScheduler.EXTRA_PREVIEW, preview);
+                .putExtra(AlarmScheduler.EXTRA_PREVIEW, preview)
+                .putExtra(AlarmScheduler.EXTRA_SNOOZE_COUNT, snoozeCount);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(intent);
         } else {

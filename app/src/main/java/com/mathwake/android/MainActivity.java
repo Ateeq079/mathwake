@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_EDIT_ALARM = 10;
@@ -443,7 +444,7 @@ public class MainActivity extends AppCompatActivity {
         long minutes = (ms / 60000) % 60;
         long seconds = (ms / 1000) % 60;
         long hundredths = (ms / 10) % 100;
-        return String.format("%02d:%02d.%02d", minutes, seconds, hundredths);
+        return String.format(Locale.getDefault(), "%02d:%02d.%02d", minutes, seconds, hundredths);
     }
 
     // ─── Timer tab rendering ──────────────────────────────────────
@@ -611,7 +612,7 @@ public class MainActivity extends AppCompatActivity {
         long hours = ms / 3600000;
         long minutes = (ms / 60000) % 60;
         long seconds = (ms / 1000) % 60;
-        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+        return String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds);
     }
 
     private void updateTimerDisplay(long ms) {
@@ -700,6 +701,7 @@ public class MainActivity extends AppCompatActivity {
 
         Switch toggle = new Switch(this);
         toggle.setChecked(alarm.isEnabled());
+        toggle.setContentDescription("Enable alarm " + alarm.getLabel() + " at " + formatAlarmTime(alarm));
         toggle.setOnCheckedChangeListener((CompoundButton buttonView, boolean isChecked) -> toggleAlarm(alarm, isChecked));
         top.addView(toggle);
 

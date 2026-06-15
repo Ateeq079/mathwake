@@ -17,6 +17,10 @@ public final class AlarmScheduler {
     public static final String EXTRA_ALARM_JSON = "extra_alarm_json";
     public static final String EXTRA_PREVIEW = "extra_preview";
     public static final String EXTRA_IS_SNOOZE = "extra_is_snooze";
+    public static final String EXTRA_SNOOZE_COUNT = "extra_snooze_count";
+
+    /** Maximum times a single alarm ring can be snoozed before the snooze option is withheld. */
+    public static final int MAX_SNOOZES = 3;
 
     private static final int SNOOZE_REQUEST_CODE_OFFSET = 1000000;
 
@@ -56,7 +60,7 @@ public final class AlarmScheduler {
         manager.setAlarmClock(new AlarmManager.AlarmClockInfo(triggerAtMillis, infoIntent), alarmIntent);
     }
 
-    public static void scheduleSnooze(Context context, AlarmModel alarm) {
+    public static void scheduleSnooze(Context context, AlarmModel alarm, int snoozeCount) {
         if (alarm.getSnoozeMinutes() <= 0) {
             return;
         }
@@ -73,7 +77,8 @@ public final class AlarmScheduler {
 
         Intent receiverIntent = new Intent(context, AlarmReceiver.class)
                 .putExtra(EXTRA_ALARM_JSON, alarm.toJson().toString())
-                .putExtra(EXTRA_IS_SNOOZE, true);
+                .putExtra(EXTRA_IS_SNOOZE, true)
+                .putExtra(EXTRA_SNOOZE_COUNT, snoozeCount);
 
         PendingIntent alarmIntent = PendingIntent.getBroadcast(
                 context,

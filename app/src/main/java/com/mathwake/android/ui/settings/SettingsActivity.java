@@ -165,6 +165,7 @@ public class SettingsActivity extends AppCompatActivity {
         LinearLayout vibrateRow = rowShell("Default Vibrate", "Used when creating a new alarm");
         vibrateSwitch = new Switch(this);
         vibrateSwitch.setChecked(settings.isDefaultVibrate());
+        vibrateSwitch.setContentDescription("Default vibrate for new alarms");
         vibrateSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> settings.setDefaultVibrate(isChecked));
         vibrateRow.addView(vibrateSwitch);
         card.addView(vibrateRow);

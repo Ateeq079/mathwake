@@ -169,6 +169,7 @@ public class EditAlarmActivity extends AppCompatActivity {
         repeatRow.setOrientation(LinearLayout.HORIZONTAL);
         repeatRow.setGravity(Gravity.CENTER);
         String[] days = {"M", "T", "W", "T", "F", "S", "S"};
+        String[] dayNames = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
         Set<Integer> repeatDays = initial.getRepeatDays();
         for (int index = 0; index < days.length; index++) {
             final int dayIndex = index;
@@ -179,7 +180,10 @@ public class EditAlarmActivity extends AppCompatActivity {
             dayBtn.setTextSize(14);
             dayBtn.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             dayBtn.setGravity(Gravity.CENTER);
-            int size = dp(40);
+            // Disambiguate the single-letter labels for screen readers (M/T/W/T/F/S/S repeat).
+            dayBtn.setContentDescription(dayNames[index]);
+            // 48dp keeps the tap target at the accessibility minimum.
+            int size = dp(48);
             LinearLayout.LayoutParams dayParams = new LinearLayout.LayoutParams(size, size);
             dayParams.setMargins(dp(3), 0, dp(3), 0);
             dayBtn.setLayoutParams(dayParams);
@@ -215,6 +219,7 @@ public class EditAlarmActivity extends AppCompatActivity {
         LinearLayout vibrateRow = settingRow("Vibrate", "Phone vibrates when alarm rings");
         vibrateSwitch = new Switch(this);
         vibrateSwitch.setChecked(initial.isVibrate());
+        vibrateSwitch.setContentDescription("Vibrate when this alarm rings");
         vibrateRow.addView(vibrateSwitch);
         settingsCard.addView(vibrateRow);
 

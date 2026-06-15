@@ -45,6 +45,7 @@ public class AlarmRingActivity extends AppCompatActivity {
     private MathProblem problem;
     private AppSettingsRepository appSettings;
     private int attempts = 0;
+    private int snoozeCount = 0;
     private TextView problemText;
     private EditText inputField;
     private TextView feedbackText;
@@ -70,6 +71,7 @@ public class AlarmRingActivity extends AppCompatActivity {
             finish();
             return;
         }
+        snoozeCount = getIntent().getIntExtra(AlarmScheduler.EXTRA_SNOOZE_COUNT, 0);
         problem = MathGenerator.generate(alarm.getDifficulty());
         buildLayout();
     }
@@ -197,9 +199,12 @@ public class AlarmRingActivity extends AppCompatActivity {
         actionRow.setGravity(Gravity.CENTER);
         root.addView(actionRow, marginTop(14));
 
-        // Snooze button (only show if snooze is enabled)
-        if (alarm.getSnoozeMinutes() > 0) {
-            Button snooze = styledButton("Snooze (" + alarm.snoozeText() + ")", color("#FFBE3B"), color("#2D2D44"));
+        // Snooze button (only while snooze is enabled and the per-ring snooze cap is not reached).
+        int snoozesLeft = AlarmScheduler.MAX_SNOOZES - snoozeCount;
+        boolean showSnooze = alarm.getSnoozeMinutes() > 0 && snoozesLeft > 0;
+        if (showSnooze) {
+            Button snooze = styledButton("Snooze " + alarm.snoozeText() + " · " + snoozesLeft + " left",
+                    color("#FFBE3B"), color("#2D2D44"));
             snooze.setOnClickListener(v -> snoozeAlarm());
             LinearLayout.LayoutParams snoozeParams = new LinearLayout.LayoutParams(0, dp(52), 1f);
             snoozeParams.rightMargin = dp(6);
@@ -210,7 +215,7 @@ public class AlarmRingActivity extends AppCompatActivity {
         Button dismiss = styledButton("Dismiss Alarm", color("#43E97B"), color("#2D2D44"));
         dismiss.setOnClickListener(v -> checkAnswer());
         LinearLayout.LayoutParams dismissParams = new LinearLayout.LayoutParams(0, dp(52), 1f);
-        if (alarm.getSnoozeMinutes() > 0) {
+        if (showSnooze) {
             dismissParams.leftMargin = dp(6);
         }
         actionRow.addView(dismiss, dismissParams);
@@ -234,7 +239,7 @@ public class AlarmRingActivity extends AppCompatActivity {
     private void snoozeAlarm() {
         AlarmRingingService.dismiss(this, alarm.getId());
         if (AlarmScheduler.canScheduleExact(this)) {
-            AlarmScheduler.scheduleSnooze(this, alarm);
+            AlarmScheduler.scheduleSnooze(this, alarm, snoozeCount + 1);
         }
         finish();
     }

@@ -24,9 +24,11 @@ public class AlarmRepository {
     public List<AlarmModel> getAlarms() {
         String raw = prefs.getString(KEY_ALARMS, null);
         if (raw == null || raw.trim().isEmpty()) {
-            List<AlarmModel> seeded = AlarmModel.defaultSeed();
-            saveAlarms(seeded);
-            return seeded;
+            // Fresh install: start with an empty list so the app never rings an
+            // alarm the user did not create. The empty-state UI guides them to add one.
+            List<AlarmModel> empty = new ArrayList<>();
+            saveAlarms(empty);
+            return empty;
         }
 
         try {
@@ -37,9 +39,10 @@ public class AlarmRepository {
             }
             return alarms;
         } catch (JSONException exception) {
-            List<AlarmModel> seeded = AlarmModel.defaultSeed();
-            saveAlarms(seeded);
-            return seeded;
+            // Corrupt store: reset to empty rather than resurrecting demo alarms.
+            List<AlarmModel> empty = new ArrayList<>();
+            saveAlarms(empty);
+            return empty;
         }
     }
 

@@ -243,29 +243,6 @@ public class AlarmModel {
         return (int) (System.currentTimeMillis() % Integer.MAX_VALUE);
     }
 
-    public static List<AlarmModel> defaultSeed() {
-        List<AlarmModel> alarms = new ArrayList<>();
-        alarms.add(new AlarmModel(
-                1,
-                6,
-                30,
-                "Morning Rise",
-                true,
-                new HashSet<>(listOf(1, 2, 3, 4, 5)),
-                AlarmDifficulty.MEDIUM
-        ));
-        alarms.add(new AlarmModel(
-                2,
-                8,
-                0,
-                "Weekend Lazy",
-                false,
-                new HashSet<>(listOf(6, 7)),
-                AlarmDifficulty.EASY
-        ));
-        return alarms;
-    }
-
     public static AlarmModel previewFrom(AlarmModel base) {
         return new AlarmModel(
                 newId(),

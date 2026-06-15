@@ -1,7 +1,9 @@
 package com.mathwake.android;
 
 import android.Manifest;
+import android.app.AlarmManager;
 import android.app.AlertDialog;
+import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -29,10 +31,12 @@ import android.widget.NumberPicker;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.mathwake.android.alarm.AlarmScheduler;
+import com.mathwake.android.alarm.TimerReceiver;
 import com.mathwake.android.data.AppSettingsRepository;
 import com.mathwake.android.data.AlarmRepository;
 import com.mathwake.android.model.AlarmModel;
@@ -58,6 +62,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean exactAlarmGranted = true;
     private boolean overlayGranted = true;
     private boolean batteryGranted = true;
+    private boolean startupPermissionsRequested = false;
 
     private enum Tab {
         ALARMS,
@@ -126,6 +131,7 @@ public class MainActivity extends AppCompatActivity {
 
         buildLayout();
         refreshState();
+        maybeRequestStartupPermissions();
     }
 
     @Override
@@ -428,7 +434,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateStopwatchDisplay(long total) {
-        if (stopwatchTimeView != null) {
+        if (activeTab == Tab.STOPWATCH && stopwatchTimeView != null) {
             stopwatchTimeView.setText(formatTime(total));
         }
     }
@@ -485,6 +491,7 @@ public class MainActivity extends AppCompatActivity {
                     timerRunning = true;
                     timerActive = true;
                     timerHandler.post(timerRunnable);
+                    scheduleTimerAlarm(timerEndTimeMs);
                     refreshState();
                 }
             });
@@ -514,10 +521,12 @@ public class MainActivity extends AppCompatActivity {
                     timerTimeLeftMs = Math.max(0L, timerEndTimeMs - System.currentTimeMillis());
                     timerRunning = false;
                     timerHandler.removeCallbacks(timerRunnable);
+                    cancelTimerAlarm();
                 } else {
                     timerEndTimeMs = System.currentTimeMillis() + timerTimeLeftMs;
                     timerRunning = true;
                     timerHandler.post(timerRunnable);
+                    scheduleTimerAlarm(timerEndTimeMs);
                 }
                 refreshState();
             });
@@ -529,6 +538,7 @@ public class MainActivity extends AppCompatActivity {
                 timerHandler.removeCallbacks(timerRunnable);
                 timerTimeLeftMs = 0L;
                 timerEndTimeMs = 0L;
+                cancelTimerAlarm();
                 refreshState();
             });
 
@@ -538,6 +548,47 @@ public class MainActivity extends AppCompatActivity {
             controls.addView(cancelBtn, btnParams);
             list.addView(controls, marginTop(18));
         }
+    }
+
+    // Back the countdown with an AlarmManager alarm so the "timer finished" alert still fires
+    // if the user leaves the app or it gets killed before the countdown ends.
+    private void scheduleTimerAlarm(long triggerAtMs) {
+        AlarmManager manager = (AlarmManager) getSystemService(ALARM_SERVICE);
+        if (manager == null) {
+            return;
+        }
+        PendingIntent pendingIntent = timerPendingIntent();
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !manager.canScheduleExactAlarms()) {
+                manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent);
+            } else {
+                manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent);
+            }
+        } catch (SecurityException exception) {
+            manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent);
+        }
+    }
+
+    private void cancelTimerAlarm() {
+        AlarmManager manager = (AlarmManager) getSystemService(ALARM_SERVICE);
+        if (manager != null) {
+            manager.cancel(timerPendingIntent());
+        }
+        android.app.NotificationManager notificationManager =
+                (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (notificationManager != null) {
+            notificationManager.cancel(TimerReceiver.NOTIFICATION_ID);
+        }
+    }
+
+    private PendingIntent timerPendingIntent() {
+        Intent intent = new Intent(this, TimerReceiver.class);
+        return PendingIntent.getBroadcast(
+                this,
+                TimerReceiver.REQUEST_CODE,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
     }
 
     private NumberPicker createTimerPicker(int min, int max) {
@@ -564,12 +615,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateTimerDisplay(long ms) {
-        if (timerCountdownView != null) {
+        if (activeTab == Tab.TIMER && timerCountdownView != null) {
             timerCountdownView.setText(formatTimerTime(ms));
         }
     }
 
     private void onTimerFinished() {
+        // The app is in the foreground, so alert with the in-app dialog/ringtone and cancel the
+        // background notification we scheduled as a fallback.
+        cancelTimerAlarm();
         try {
             Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
             if (sound == null) {
@@ -667,9 +721,13 @@ public class MainActivity extends AppCompatActivity {
         actions.setGravity(Gravity.END);
         card.addView(actions, marginTop(10));
 
+        Button test = styledButton("Test", color("#43E97B"), color("#2D2D44"));
+        test.setOnClickListener(v -> testAlarm(alarm));
+        actions.addView(test);
+
         Button edit = styledButton("Edit", color("#6C63FF"), Color.WHITE);
         edit.setOnClickListener(v -> openEditor(alarm.getId()));
-        actions.addView(edit);
+        actions.addView(edit, marginLeft(8));
 
         Button delete = styledButton("Delete", color("#FF6584"), Color.WHITE);
         delete.setOnClickListener(v -> confirmDelete(alarm));
@@ -678,12 +736,17 @@ public class MainActivity extends AppCompatActivity {
         return card;
     }
 
-    private void requestMissingPermissions() {
-        if (Build.VERSION.SDK_INT >= 33 && !notificationsGranted) {
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
+    // Proactively ask for the notification permission once on first launch. Without it the
+    // alarm's foreground-service notification and full-screen intent cannot post, so the
+    // math/dismiss screen may never appear. Exact-alarm/overlay/battery still live in Settings.
+    private void maybeRequestStartupPermissions() {
+        if (startupPermissionsRequested) {
+            return;
         }
-        if (!exactAlarmGranted) {
-            startActivity(AlarmScheduler.exactAlarmSettingsIntent(this));
+        startupPermissionsRequested = true;
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
         }
     }
 
@@ -713,6 +776,16 @@ public class MainActivity extends AppCompatActivity {
             AlarmScheduler.cancelSnooze(this, alarm.getId());
         }
         refreshState();
+    }
+
+    private void testAlarm(AlarmModel alarm) {
+        if (!AlarmScheduler.canScheduleExact(this)) {
+            Toast.makeText(this, "Grant the Exact Alarms permission to test alarms.", Toast.LENGTH_LONG).show();
+            startActivity(AlarmScheduler.exactAlarmSettingsIntent(this));
+            return;
+        }
+        AlarmScheduler.schedulePreview(this, alarm);
+        Toast.makeText(this, "Test alarm rings in a few seconds. Lock your screen to preview.", Toast.LENGTH_LONG).show();
     }
 
     private void confirmDelete(AlarmModel alarm) {

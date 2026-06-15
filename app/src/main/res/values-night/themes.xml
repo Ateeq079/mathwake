@@ -3,4 +3,10 @@
         <item name="android:statusBarColor">@color/background</item>
         <item name="android:navigationBarColor">@color/surface</item>
     </style>
+
+    <!-- Dark variant: the day theme forces Material.Light (dark digits), which is invisible on
+         the dark Edit-Alarm card. Use the standard (dark) Material picker so digits stay light. -->
+    <style name="SpinnerTimePicker" parent="@android:style/Widget.Material.TimePicker">
+        <item name="android:timePickerMode">spinner</item>
+    </style>
 </resources>

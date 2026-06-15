@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.media.AudioAttributes;
 import android.media.MediaPlayer;
 import android.media.RingtoneManager;
@@ -74,7 +75,12 @@ public class AlarmRingingService extends Service {
             return START_NOT_STICKY;
         }
         currentAlarmId = alarm.getId();
-        startForeground(alarm.getId(), buildNotification(alarm, json, preview));
+        Notification notification = buildNotification(alarm, json, preview);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(alarm.getId(), notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+        } else {
+            startForeground(alarm.getId(), notification);
+        }
         startRinging(alarm);
         openRingScreen(json, preview);
         return START_STICKY;
@@ -124,6 +130,26 @@ public class AlarmRingingService extends Service {
     }
 
     private void startRinging(AlarmModel alarm) {
+        // If a previous alarm is still ringing (a second alarm fired before the first was
+        // dismissed), tear it down so the most recent alarm is the one that sounds.
+        if (player != null) {
+            try {
+                player.stop();
+            } catch (IllegalStateException ignored) {
+            }
+            player.release();
+            player = null;
+        }
+        if (volumeHandler != null && volumeRunnable != null) {
+            volumeHandler.removeCallbacks(volumeRunnable);
+            volumeHandler = null;
+            volumeRunnable = null;
+        }
+        if (vibrator != null) {
+            vibrator.cancel();
+            vibrator = null;
+        }
+
         // --- Audio ---
         if (player == null) {
             try {

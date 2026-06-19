@@ -21,6 +21,7 @@ public class AppSettingsRepository {
     private static final String KEY_DEFAULT_SNOOZE = "default_snooze";
     private static final String KEY_DEFAULT_VIBRATE = "default_vibrate";
     private static final String KEY_DEFAULT_DIFFICULTY = "default_difficulty";
+    private static final String KEY_ONBOARDED = "onboarding_completed";
 
     private static final DateTimeFormatter TIME_12 = DateTimeFormatter.ofPattern("h:mm a");
     private static final DateTimeFormatter TIME_24 = DateTimeFormatter.ofPattern("HH:mm");
@@ -29,6 +30,14 @@ public class AppSettingsRepository {
 
     public AppSettingsRepository(Context context) {
         prefs = context.getSharedPreferences(STORE_NAME, Context.MODE_PRIVATE);
+    }
+
+    public boolean hasCompletedOnboarding() {
+        return prefs.getBoolean(KEY_ONBOARDED, false);
+    }
+
+    public void setOnboardingCompleted() {
+        prefs.edit().putBoolean(KEY_ONBOARDED, true).apply();
     }
 
     public boolean is24HourTime() {

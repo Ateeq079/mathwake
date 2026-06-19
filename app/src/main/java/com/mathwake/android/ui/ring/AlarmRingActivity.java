@@ -16,15 +16,16 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.textview.MaterialTextView;
 
 import com.mathwake.android.alarm.AlarmRingingService;
 import com.mathwake.android.alarm.AlarmScheduler;
@@ -46,10 +47,10 @@ public class AlarmRingActivity extends AppCompatActivity {
     private AppSettingsRepository appSettings;
     private int attempts = 0;
     private int snoozeCount = 0;
-    private TextView problemText;
+    private MaterialTextView problemText;
     private EditText inputField;
-    private TextView feedbackText;
-    private TextView attemptsText;
+    private MaterialTextView feedbackText;
+    private MaterialTextView attemptsText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -133,7 +134,7 @@ public class AlarmRingActivity extends AppCompatActivity {
         root.addView(chips, matchWrap());
 
         // Clock
-        TextView clock = text(appSettings.formatTime(LocalTime.now()), 48, Color.WHITE, Typeface.BOLD);
+        MaterialTextView clock = text(appSettings.formatTime(LocalTime.now()), 48, Color.WHITE, Typeface.BOLD);
         clock.setGravity(Gravity.CENTER);
         root.addView(clock, marginTop(28));
 
@@ -145,7 +146,7 @@ public class AlarmRingActivity extends AppCompatActivity {
         card.setBackground(cardBackground(color("#33FFFFFF")));
         root.addView(card, marginTop(24));
 
-        TextView prompt = text("Solve to dismiss - " + alarm.getDifficulty().getDisplay().toUpperCase(), 12, Color.WHITE, Typeface.BOLD);
+        MaterialTextView prompt = text("Solve to dismiss - " + alarm.getDifficulty().getDisplay().toUpperCase(), 12, Color.WHITE, Typeface.BOLD);
         prompt.setAlpha(0.8f);
         card.addView(prompt);
 
@@ -162,7 +163,7 @@ public class AlarmRingActivity extends AppCompatActivity {
         attemptsText.setGravity(Gravity.CENTER);
         card.addView(attemptsText, marginTop(4));
 
-        Button newProblem = styledButton("New Problem", color("#24FFFFFF"), Color.WHITE);
+        MaterialButton newProblem = styledButton("New Problem", color("#24FFFFFF"), Color.WHITE);
         newProblem.setOnClickListener(v -> {
             problem = MathGenerator.generate(alarm.getDifficulty());
             inputField.setText("");
@@ -203,7 +204,7 @@ public class AlarmRingActivity extends AppCompatActivity {
         int snoozesLeft = AlarmScheduler.MAX_SNOOZES - snoozeCount;
         boolean showSnooze = alarm.getSnoozeMinutes() > 0 && snoozesLeft > 0;
         if (showSnooze) {
-            Button snooze = styledButton("Snooze " + alarm.snoozeText() + " · " + snoozesLeft + " left",
+            MaterialButton snooze = styledButton("Snooze " + alarm.snoozeText() + " · " + snoozesLeft + " left",
                     color("#FFBE3B"), color("#2D2D44"));
             snooze.setOnClickListener(v -> snoozeAlarm());
             LinearLayout.LayoutParams snoozeParams = new LinearLayout.LayoutParams(0, dp(52), 1f);
@@ -212,7 +213,7 @@ public class AlarmRingActivity extends AppCompatActivity {
         }
 
         // Dismiss button
-        Button dismiss = styledButton("Dismiss Alarm", color("#43E97B"), color("#2D2D44"));
+        MaterialButton dismiss = styledButton("Dismiss Alarm", color("#43E97B"), color("#2D2D44"));
         dismiss.setOnClickListener(v -> checkAnswer());
         LinearLayout.LayoutParams dismissParams = new LinearLayout.LayoutParams(0, dp(52), 1f);
         if (showSnooze) {
@@ -279,16 +280,16 @@ public class AlarmRingActivity extends AppCompatActivity {
 
     // ─── UI helpers ──────────────────────────────────────────────
 
-    private TextView chip(String value) {
-        TextView chip = text(value, 12, Color.WHITE, Typeface.BOLD);
+    private MaterialTextView chip(String value) {
+        MaterialTextView chip = text(value, 12, Color.WHITE, Typeface.BOLD);
         chip.setGravity(Gravity.CENTER);
         chip.setPadding(dp(12), dp(8), dp(12), dp(8));
         chip.setBackground(cardBackground(color("#24FFFFFF")));
         return chip;
     }
 
-    private TextView text(String value, int sp, int color, int style) {
-        TextView textView = new TextView(this);
+    private MaterialTextView text(String value, int sp, int color, int style) {
+        MaterialTextView textView = new MaterialTextView(this);
         textView.setText(value);
         textView.setTextSize(sp);
         textView.setTextColor(color);
@@ -296,18 +297,16 @@ public class AlarmRingActivity extends AppCompatActivity {
         return textView;
     }
 
-    private Button styledButton(String label, int bgColor, int textColor) {
-        Button button = new Button(this);
+    private MaterialButton styledButton(String label, int bgColor, int textColor) {
+        MaterialButton button = new MaterialButton(this);
         button.setText(label);
         button.setAllCaps(false);
         button.setTextColor(textColor);
+        button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(bgColor));
+        button.setCornerRadius(dp(14));
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setTextSize(14);
         button.setPadding(dp(16), dp(10), dp(16), dp(10));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(bgColor);
-        bg.setCornerRadius(dp(14));
-        button.setBackground(bg);
         button.setStateListAnimator(null);
         return button;
     }

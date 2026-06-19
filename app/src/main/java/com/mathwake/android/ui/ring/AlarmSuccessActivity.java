@@ -13,11 +13,12 @@ import com.mathwake.android.ui.ThemeUtils;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.TextView;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.textview.MaterialTextView;
 
 import com.mathwake.android.MainActivity;
 
@@ -62,21 +63,21 @@ public class AlarmSuccessActivity extends AppCompatActivity {
         rootParams.gravity = Gravity.CENTER;
         wrapper.addView(root, rootParams);
 
-        TextView title = text("Alarm Dismissed", 32, Color.WHITE, Typeface.BOLD);
+        MaterialTextView title = text("Alarm Dismissed", 32, Color.WHITE, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         root.addView(title);
 
-        TextView message = text("You solved " + safe(label) + " in " + attempts + " attempt" + (attempts == 1 ? "." : "s."), 16, Color.WHITE, Typeface.NORMAL);
+        MaterialTextView message = text("You solved " + safe(label) + " in " + attempts + " attempt" + (attempts == 1 ? "." : "s."), 16, Color.WHITE, Typeface.NORMAL);
         message.setGravity(Gravity.CENTER);
         root.addView(message, marginTop(12));
 
-        TextView stats = text("Difficulty: " + safe(difficulty) + "\nAttempts: " + attempts, 18, Color.WHITE, Typeface.BOLD);
+        MaterialTextView stats = text("Difficulty: " + safe(difficulty) + "\nAttempts: " + attempts, 18, Color.WHITE, Typeface.BOLD);
         stats.setGravity(Gravity.CENTER);
         stats.setPadding(dp(20), dp(20), dp(20), dp(20));
         stats.setBackground(cardBackground(color("#33FFFFFF")));
         root.addView(stats, marginTop(28));
 
-        Button done = styledButton("Start My Day", Color.WHITE, color("#2D2D44"));
+        MaterialButton done = styledButton("Start My Day", Color.WHITE, color("#2D2D44"));
         done.setOnClickListener(v -> {
             Intent intent = new Intent(this, MainActivity.class)
                     .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -92,8 +93,8 @@ public class AlarmSuccessActivity extends AppCompatActivity {
         return value == null || value.isEmpty() ? "your alarm" : value;
     }
 
-    private TextView text(String value, int sp, int color, int style) {
-        TextView textView = new TextView(this);
+    private MaterialTextView text(String value, int sp, int color, int style) {
+        MaterialTextView textView = new MaterialTextView(this);
         textView.setText(value);
         textView.setTextSize(sp);
         textView.setTextColor(color);
@@ -101,18 +102,16 @@ public class AlarmSuccessActivity extends AppCompatActivity {
         return textView;
     }
 
-    private Button styledButton(String label, int bgColor, int textColor) {
-        Button button = new Button(this);
+    private MaterialButton styledButton(String label, int bgColor, int textColor) {
+        MaterialButton button = new MaterialButton(this);
         button.setText(label);
         button.setAllCaps(false);
         button.setTextColor(textColor);
+        button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(bgColor));
+        button.setCornerRadius(dp(14));
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setTextSize(16);
         button.setPadding(dp(24), dp(12), dp(24), dp(12));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(bgColor);
-        bg.setCornerRadius(dp(14));
-        button.setBackground(bg);
         button.setStateListAnimator(null);
         return button;
     }

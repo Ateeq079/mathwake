@@ -50,6 +50,8 @@ public class SettingsActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        getDelegate().setLocalNightMode(
+                AppSettingsRepository.getNightMode(new AppSettingsRepository(this).getDarkMode()));
         super.onCreate(savedInstanceState);
         settings = new AppSettingsRepository(this);
         buildLayout();
@@ -98,11 +100,8 @@ public class SettingsActivity extends AppCompatActivity {
         TextView title = text("Settings", 30, color("#2D2D44"), Typeface.BOLD);
         header.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        Button close = styledButton("Done", color("#6C63FF"), Color.WHITE);
-        close.setOnClickListener(v -> finish());
-        header.addView(close);
-
-        root.addView(text("App preferences, permissions, support, and about", 14, color("#6D6A80"), Typeface.NORMAL), marginTop(4));
+        // Changes save automatically as they are made, so there is no Done button.
+        root.addView(text("Changes save automatically", 14, color("#6D6A80"), Typeface.NORMAL), marginTop(4));
 
         buildAppSection();
         buildPermissionSection();

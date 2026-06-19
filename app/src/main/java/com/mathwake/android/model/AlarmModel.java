@@ -243,21 +243,6 @@ public class AlarmModel {
         return (int) (System.currentTimeMillis() % Integer.MAX_VALUE);
     }
 
-    public static AlarmModel previewFrom(AlarmModel base) {
-        return new AlarmModel(
-                newId(),
-                base.hour,
-                base.minute,
-                base.label + " (Test)",
-                true,
-                Collections.emptySet(),
-                base.difficulty,
-                base.snoozeMinutes,
-                base.vibrate,
-                base.ringtoneUri
-        );
-    }
-
     private static List<Integer> listOf(Integer... values) {
         List<Integer> list = new ArrayList<>();
         Collections.addAll(list, values);

@@ -15,7 +15,6 @@ import java.time.ZoneId;
 
 public final class AlarmScheduler {
     public static final String EXTRA_ALARM_JSON = "extra_alarm_json";
-    public static final String EXTRA_PREVIEW = "extra_preview";
     public static final String EXTRA_IS_SNOOZE = "extra_is_snooze";
     public static final String EXTRA_SNOOZE_COUNT = "extra_snooze_count";
 
@@ -28,10 +27,6 @@ public final class AlarmScheduler {
     }
 
     public static void schedule(Context context, AlarmModel alarm) {
-        schedule(context, alarm, false);
-    }
-
-    public static void schedule(Context context, AlarmModel alarm, boolean preview) {
         AlarmManager manager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         long triggerAtMillis = alarm.nextOccurrence()
                 .atZone(ZoneId.systemDefault())
@@ -47,8 +42,7 @@ public final class AlarmScheduler {
         );
 
         Intent receiverIntent = new Intent(context, AlarmReceiver.class)
-                .putExtra(EXTRA_ALARM_JSON, alarm.toJson().toString())
-                .putExtra(EXTRA_PREVIEW, preview);
+                .putExtra(EXTRA_ALARM_JSON, alarm.toJson().toString());
 
         PendingIntent alarmIntent = PendingIntent.getBroadcast(
                 context,
@@ -83,32 +77,6 @@ public final class AlarmScheduler {
         PendingIntent alarmIntent = PendingIntent.getBroadcast(
                 context,
                 alarm.getId() + SNOOZE_REQUEST_CODE_OFFSET,
-                receiverIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
-
-        manager.setAlarmClock(new AlarmManager.AlarmClockInfo(triggerAtMillis, infoIntent), alarmIntent);
-    }
-
-    public static void schedulePreview(Context context, AlarmModel alarm) {
-        AlarmModel previewAlarm = AlarmModel.previewFrom(alarm);
-        AlarmManager manager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        long triggerAtMillis = System.currentTimeMillis() + 3000L;
-
-        PendingIntent infoIntent = PendingIntent.getActivity(
-                context,
-                previewAlarm.getId(),
-                new Intent(context, MainActivity.class),
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
-
-        Intent receiverIntent = new Intent(context, AlarmReceiver.class)
-                .putExtra(EXTRA_ALARM_JSON, previewAlarm.toJson().toString())
-                .putExtra(EXTRA_PREVIEW, true);
-
-        PendingIntent alarmIntent = PendingIntent.getBroadcast(
-                context,
-                previewAlarm.getId(),
                 receiverIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );

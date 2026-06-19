@@ -1,6 +1,4 @@
 <resources>
-    <attr name="colorBackground" format="reference|color" />
-    <attr name="colorSurface" format="reference|color" />
     <attr name="white63" format="reference|color" />
     <attr name="surfaceVariant" format="reference|color" />
     <attr name="surfaceAlt" format="reference|color" />

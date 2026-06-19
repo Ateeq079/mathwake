@@ -68,7 +68,6 @@ public class AlarmRingingService extends Service {
             return START_NOT_STICKY;
         }
 
-        boolean preview = intent.getBooleanExtra(AlarmScheduler.EXTRA_PREVIEW, false);
         int snoozeCount = intent.getIntExtra(AlarmScheduler.EXTRA_SNOOZE_COUNT, 0);
         AlarmModel alarm;
         try {
@@ -77,14 +76,14 @@ public class AlarmRingingService extends Service {
             return START_NOT_STICKY;
         }
         currentAlarmId = alarm.getId();
-        Notification notification = buildNotification(alarm, json, preview, snoozeCount);
+        Notification notification = buildNotification(alarm, json, snoozeCount);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(alarm.getId(), notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
         } else {
             startForeground(alarm.getId(), notification);
         }
         startRinging(alarm);
-        openRingScreen(json, preview, snoozeCount);
+        openRingScreen(json, snoozeCount);
         return START_STICKY;
     }
 
@@ -94,12 +93,11 @@ public class AlarmRingingService extends Service {
         super.onDestroy();
     }
 
-    private Notification buildNotification(AlarmModel alarm, String json, boolean preview, int snoozeCount) {
+    private Notification buildNotification(AlarmModel alarm, String json, int snoozeCount) {
         ensureNotificationChannel(this);
 
         Intent ringIntent = new Intent(this, AlarmRingActivity.class)
                 .putExtra(AlarmScheduler.EXTRA_ALARM_JSON, json)
-                .putExtra(AlarmScheduler.EXTRA_PREVIEW, preview)
                 .putExtra(AlarmScheduler.EXTRA_SNOOZE_COUNT, snoozeCount)
                 .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
@@ -124,10 +122,9 @@ public class AlarmRingingService extends Service {
                 .build();
     }
 
-    private void openRingScreen(String json, boolean preview, int snoozeCount) {
+    private void openRingScreen(String json, int snoozeCount) {
         Intent intent = new Intent(this, AlarmRingActivity.class)
                 .putExtra(AlarmScheduler.EXTRA_ALARM_JSON, json)
-                .putExtra(AlarmScheduler.EXTRA_PREVIEW, preview)
                 .putExtra(AlarmScheduler.EXTRA_SNOOZE_COUNT, snoozeCount)
                 .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         startActivity(intent);
@@ -266,10 +263,9 @@ public class AlarmRingingService extends Service {
         }
     }
 
-    public static void start(Context context, String alarmJson, boolean preview, int snoozeCount) {
+    public static void start(Context context, String alarmJson, int snoozeCount) {
         Intent intent = new Intent(context, AlarmRingingService.class)
                 .putExtra(AlarmScheduler.EXTRA_ALARM_JSON, alarmJson)
-                .putExtra(AlarmScheduler.EXTRA_PREVIEW, preview)
                 .putExtra(AlarmScheduler.EXTRA_SNOOZE_COUNT, snoozeCount);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(intent);

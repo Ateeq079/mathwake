@@ -22,9 +22,14 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.Spinner;
-import android.widget.Switch;
-import android.widget.TextView;
 import android.widget.TimePicker;
+
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.textview.MaterialTextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -50,12 +55,12 @@ public class EditAlarmActivity extends AppCompatActivity {
     private int hour;
     private int minute;
     private EditText labelInput;
-    private final TextView[] dayButtons = new TextView[7];
+    private MaterialTextView[] dayButtons = new MaterialTextView[7];
     private final boolean[] daySelected = new boolean[7];
     private RadioGroup difficultyGroup;
     private TimePicker timePicker;
-    private Switch vibrateSwitch;
-    private TextView ringtoneLabel;
+    private MaterialSwitch vibrateSwitch;
+    private MaterialTextView ringtoneLabel;
     private Spinner snoozeSpinner;
     private String selectedRingtoneUri;
 
@@ -64,6 +69,8 @@ public class EditAlarmActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        getDelegate().setLocalNightMode(
+                AppSettingsRepository.getNightMode(new AppSettingsRepository(this).getDarkMode()));
         super.onCreate(savedInstanceState);
         repository = new AlarmRepository(this);
         appSettings = new AppSettingsRepository(this);
@@ -130,7 +137,7 @@ public class EditAlarmActivity extends AppCompatActivity {
         wrapper.addView(root, rootParams);
 
         // Title
-        TextView title = text(editing ? "Edit Alarm" : "New Alarm", 28, color("#2D2D44"), Typeface.BOLD);
+        MaterialTextView title = text(editing ? "Edit Alarm" : "New Alarm", 28, color("#2D2D44"), Typeface.BOLD);
         root.addView(title);
 
         // Time Picker card (inline slot/spinner mode)
@@ -175,7 +182,7 @@ public class EditAlarmActivity extends AppCompatActivity {
             final int dayIndex = index;
             daySelected[index] = repeatDays.contains(index + 1);
 
-            TextView dayBtn = new TextView(this);
+            MaterialTextView dayBtn = new MaterialTextView(this);
             dayBtn.setText(days[index]);
             dayBtn.setTextSize(14);
             dayBtn.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -217,7 +224,7 @@ public class EditAlarmActivity extends AppCompatActivity {
 
         // Vibrate toggle
         LinearLayout vibrateRow = settingRow("Vibrate", "Phone vibrates when alarm rings");
-        vibrateSwitch = new Switch(this);
+        vibrateSwitch = new MaterialSwitch(this);
         vibrateSwitch.setChecked(initial.isVibrate());
         vibrateSwitch.setContentDescription("Vibrate when this alarm rings");
         vibrateRow.addView(vibrateSwitch);
@@ -272,24 +279,32 @@ public class EditAlarmActivity extends AppCompatActivity {
         ringtoneLabel = text(getRingtoneName(), 12, color("#6C63FF"), Typeface.NORMAL);
         ringtoneInfo.addView(ringtoneLabel);
 
-        Button ringtoneBtn = styledButton("Change", color("#6C63FF"), Color.WHITE);
+        MaterialButton ringtoneBtn = styledButton("Change", color("#6C63FF"), Color.WHITE);
         ringtoneBtn.setOnClickListener(v -> openRingtonePicker());
         ringtoneRow.addView(ringtoneBtn);
         settingsCard.addView(ringtoneRow);
 
         // ─── Action buttons ──────────────────────────────
 
-        Button save = styledButton(editing ? "Update Alarm" : "Set Alarm", color("#6C63FF"), Color.WHITE);
+        MaterialButton save = styledButton(editing ? "Update Alarm" : "Set Alarm", color("#6C63FF"), Color.WHITE);
         save.setOnClickListener(v -> saveAlarm());
         LinearLayout.LayoutParams saveParams = marginTop(28);
         saveParams.height = dp(52);
         root.addView(save, saveParams);
 
-        Button cancel = styledButton("Cancel", color("#F1F1F6"), color("#2D2D44"));
+        MaterialButton cancel = styledButton("Cancel", color("#F1F1F6"), color("#2D2D44"));
         cancel.setOnClickListener(v -> finish());
         LinearLayout.LayoutParams cancelParams = marginTop(8);
         cancelParams.height = dp(52);
         root.addView(cancel, cancelParams);
+
+        if (editing) {
+            MaterialButton delete = styledButton("Delete Alarm", color("#FF6584"), Color.WHITE);
+            delete.setOnClickListener(v -> confirmDelete());
+            LinearLayout.LayoutParams deleteParams = marginTop(8);
+            deleteParams.height = dp(52);
+            root.addView(delete, deleteParams);
+        }
 
         setContentView(scrollView);
     }
@@ -385,9 +400,24 @@ public class EditAlarmActivity extends AppCompatActivity {
         finish();
     }
 
+    private void confirmDelete() {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete alarm?")
+                .setMessage("This alarm will be removed from the schedule.")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    AlarmScheduler.cancel(this, initial.getId());
+                    AlarmScheduler.cancelSnooze(this, initial.getId());
+                    repository.delete(initial.getId());
+                    setResult(RESULT_OK);
+                    finish();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
     // ─── UI helpers ──────────────────────────────────────────────
 
-    private void updateDayButtonStyle(TextView btn, boolean selected) {
+    private void updateDayButtonStyle(MaterialTextView btn, boolean selected) {
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.OVAL);
         if (selected) {
@@ -434,12 +464,12 @@ public class EditAlarmActivity extends AppCompatActivity {
         return card;
     }
 
-    private TextView sectionTitle(String value) {
+    private MaterialTextView sectionTitle(String value) {
         return text(value, 16, color("#2D2D44"), Typeface.BOLD);
     }
 
-    private TextView text(String value, int sp, int color, int style) {
-        TextView textView = new TextView(this);
+    private MaterialTextView text(String value, int sp, int color, int style) {
+        MaterialTextView textView = new MaterialTextView(this);
         textView.setText(value);
         textView.setTextSize(sp);
         textView.setTextColor(color);
@@ -447,18 +477,16 @@ public class EditAlarmActivity extends AppCompatActivity {
         return textView;
     }
 
-    private Button styledButton(String label, int bgColor, int textColor) {
-        Button button = new Button(this);
+    private MaterialButton styledButton(String label, int bgColor, int textColor) {
+        MaterialButton button = new MaterialButton(this);
         button.setText(label);
         button.setAllCaps(false);
         button.setTextColor(textColor);
+        button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(bgColor));
+        button.setCornerRadius(dp(12));
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setTextSize(14);
         button.setPadding(dp(16), dp(8), dp(16), dp(8));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(bgColor);
-        bg.setCornerRadius(dp(12));
-        button.setBackground(bg);
         button.setStateListAnimator(null);
         return button;
     }

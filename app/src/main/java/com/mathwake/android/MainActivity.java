@@ -30,10 +30,16 @@ import android.widget.LinearLayout;
 import android.widget.NumberPicker;
 import android.widget.ScrollView;
 import android.widget.Switch;
-import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
+
+import android.widget.Button;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.textview.MaterialTextView;
 
 import com.mathwake.android.alarm.AlarmScheduler;
 import com.mathwake.android.alarm.TimerReceiver;
@@ -41,6 +47,7 @@ import com.mathwake.android.data.AppSettingsRepository;
 import com.mathwake.android.data.AlarmRepository;
 import com.mathwake.android.model.AlarmModel;
 import com.mathwake.android.ui.edit.EditAlarmActivity;
+import com.mathwake.android.ui.onboarding.OnboardingActivity;
 import com.mathwake.android.ui.settings.SettingsActivity;
 
 import java.time.LocalTime;
@@ -59,6 +66,7 @@ public class MainActivity extends AppCompatActivity {
     private AppSettingsRepository appSettings;
     private LinearLayout list;
     private LinearLayout bottomNav;
+    private com.google.android.material.floatingactionbutton.FloatingActionButton addAlarmFab;
     private boolean notificationsGranted = true;
     private boolean exactAlarmGranted = true;
     private boolean overlayGranted = true;
@@ -98,6 +106,13 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Apply the saved Dark Mode preference to this activity directly, before anything is
+        // inflated. Relying only on the Application-level default can lag on warm starts, which
+        // left the screen rendering in the light theme (and the OS force-darkening it, turning
+        // cards white). Setting the local night mode here keeps the app's own dark theme
+        // authoritative every time the screen opens.
+        getDelegate().setLocalNightMode(
+                AppSettingsRepository.getNightMode(new AppSettingsRepository(this).getDarkMode()));
         super.onCreate(savedInstanceState);
         repository = new AlarmRepository(this);
         appSettings = new AppSettingsRepository(this);
@@ -132,7 +147,13 @@ public class MainActivity extends AppCompatActivity {
 
         buildLayout();
         refreshState();
-        maybeRequestStartupPermissions();
+        // First launch: walk the user through granting permissions. Afterwards, just make sure
+        // the notification permission has been asked for once.
+        if (!appSettings.hasCompletedOnboarding()) {
+            startActivity(new Intent(this, OnboardingActivity.class));
+        } else {
+            maybeRequestStartupPermissions();
+        }
     }
 
     @Override
@@ -168,6 +189,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void buildLayout() {
+        // Let the system reserve space for the status and navigation bars (non edge-to-edge,
+        // matching the theme's windowOptOutEdgeToEdgeEnforcement). This keeps the bottom nav
+        // sitting above the device's navigation bar / gesture pill on every device.
+        boolean lightBars = (getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                != android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        androidx.core.view.WindowInsetsControllerCompat insetsController =
+                androidx.core.view.WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        insetsController.setAppearanceLightStatusBars(lightBars);
+        insetsController.setAppearanceLightNavigationBars(lightBars);
+
         LinearLayout screen = new LinearLayout(this);
         screen.setOrientation(LinearLayout.VERTICAL);
         screen.setBackgroundColor(color("#F7F8FC"));
@@ -185,7 +217,8 @@ public class MainActivity extends AppCompatActivity {
 
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(dp(20), dp(24), dp(20), dp(24));
+        // Extra bottom padding so the last item can scroll clear of the floating add button.
+        list.setPadding(dp(20), dp(24), dp(20), dp(96));
 
         FrameLayout.LayoutParams listParams = new FrameLayout.LayoutParams(
                 constrainedWidth(), ViewGroup.LayoutParams.WRAP_CONTENT
@@ -193,7 +226,29 @@ public class MainActivity extends AppCompatActivity {
         listParams.gravity = Gravity.CENTER_HORIZONTAL;
         wrapper.addView(list, listParams);
 
-        screen.addView(scrollView, new LinearLayout.LayoutParams(
+        // Content area (weight 1) holds the scrolling list with an "add alarm" FAB floating
+        // over its bottom-right corner, just above the nav bar.
+        FrameLayout content = new FrameLayout(this);
+        content.addView(scrollView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        addAlarmFab = new com.google.android.material.floatingactionbutton.FloatingActionButton(this);
+        addAlarmFab.setImageResource(R.drawable.ic_add);
+        addAlarmFab.setImageTintList(android.content.res.ColorStateList.valueOf(Color.WHITE));
+        addAlarmFab.setBackgroundTintList(android.content.res.ColorStateList.valueOf(color("#6C63FF")));
+        addAlarmFab.setContentDescription("Add alarm");
+        addAlarmFab.setOnClickListener(v -> openEditor(-1));
+        FrameLayout.LayoutParams fabParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        fabParams.gravity = Gravity.BOTTOM | Gravity.END;
+        fabParams.setMargins(0, 0, dp(20), dp(20));
+        content.addView(addAlarmFab, fabParams);
+
+        screen.addView(content, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 0,
                 1f
@@ -234,6 +289,9 @@ public class MainActivity extends AppCompatActivity {
         } else if (activeTab == Tab.TIMER) {
             renderTimer();
         }
+        if (addAlarmFab != null) {
+            addAlarmFab.setVisibility(activeTab == Tab.ALARMS ? View.VISIBLE : View.GONE);
+        }
         renderBottomNavigation();
     }
 
@@ -250,50 +308,56 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         bottomNav.removeAllViews();
-        addBottomNavButton("Alarms", activeTab == Tab.ALARMS, v -> {
+        addBottomNavButton("Alarms", activeTab == Tab.ALARMS, R.drawable.ic_alarm, v -> {
             activeTab = Tab.ALARMS;
             refreshState();
         });
-        addBottomNavButton("Stopwatch", activeTab == Tab.STOPWATCH, v -> {
+        addBottomNavButton("Stopwatch", activeTab == Tab.STOPWATCH, R.drawable.ic_stopwatch, v -> {
             activeTab = Tab.STOPWATCH;
             refreshState();
         });
-        addBottomNavButton("Timer", activeTab == Tab.TIMER, v -> {
+        addBottomNavButton("Timer", activeTab == Tab.TIMER, R.drawable.ic_timer, v -> {
             activeTab = Tab.TIMER;
             refreshState();
         });
-        addBottomNavButton("Settings", false, v -> startActivity(new Intent(this, SettingsActivity.class)));
+        addBottomNavButton("Settings", false, R.drawable.ic_settings, v -> startActivity(new Intent(this, SettingsActivity.class)));
     }
 
-    private void addBottomNavButton(String label, boolean active, View.OnClickListener listener) {
-        Button button = styledNavButton(label, active);
+    private void addBottomNavButton(String label, boolean active, int iconRes, View.OnClickListener listener) {
+        Button button = styledNavButton(label, active, iconRes);
         button.setOnClickListener(listener);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(48), 1f);
+        // WRAP_CONTENT height so the icon + label always fit without clipping the label.
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
         params.setMargins(dp(3), 0, dp(3), 0);
         bottomNav.addView(button, params);
     }
 
-    private Button styledNavButton(String label, boolean active) {
+    private Button styledNavButton(String label, boolean active, int iconRes) {
         Button button = new Button(this);
+        button.setBackgroundColor(Color.TRANSPARENT);
+        button.setElevation(0);
         button.setText(label);
         button.setAllCaps(false);
         button.setTextSize(12);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setPadding(dp(4), dp(6), dp(4), dp(6));
+        
+        android.graphics.drawable.Drawable icon = ContextCompat.getDrawable(this, iconRes);
+        if (icon != null) {
+            icon.setTintList(android.content.res.ColorStateList.valueOf(active ? color("#6C63FF") : color("#6D6A80")));
+            button.setCompoundDrawablesWithIntrinsicBounds(null, icon, null, null);
+        }
 
-        GradientDrawable bg = new GradientDrawable();
         if (active) {
-            bg.setColor(color("#6C63FF"));
-            button.setTextColor(Color.WHITE);
+            button.setTextColor(color("#6C63FF"));
         } else {
-            bg.setColor(color("#F1F1F6"));
             button.setTextColor(color("#6D6A80"));
         }
-        bg.setCornerRadius(dp(14));
-        button.setBackground(bg);
         button.setStateListAnimator(null);
         return button;
     }
+
 
     private void render(List<AlarmModel> alarms) {
         list.removeAllViews();
@@ -306,10 +370,6 @@ public class MainActivity extends AppCompatActivity {
         TextView title = title("MathWake", 30);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         header.addView(title, titleParams);
-
-        Button add = styledButton("+ Add Alarm", color("#6C63FF"), Color.WHITE);
-        add.setOnClickListener(v -> openEditor(-1));
-        header.addView(add);
 
         TextView subtitle = text("Wake up smarter every day", 14, color("#6D6A80"), Typeface.NORMAL);
         list.addView(subtitle, marginTop(4));
@@ -368,6 +428,11 @@ public class MainActivity extends AppCompatActivity {
         controls.setGravity(Gravity.CENTER);
 
         Button startPause = styledButton(stopwatchRunning ? "Pause" : "Start", stopwatchRunning ? color("#FFBE3B") : color("#6C63FF"), stopwatchRunning ? color("#2D2D44") : Color.WHITE);
+        android.graphics.drawable.Drawable spIcon = ContextCompat.getDrawable(this, stopwatchRunning ? R.drawable.ic_pause : R.drawable.ic_play);
+        if (spIcon != null) {
+            spIcon.setTint(stopwatchRunning ? color("#2D2D44") : Color.WHITE);
+            startPause.setCompoundDrawablesWithIntrinsicBounds(spIcon, null, null, null);
+        }
         startPause.setOnClickListener(v -> {
             if (stopwatchRunning) {
                 stopwatchElapsedTime += System.currentTimeMillis() - stopwatchStartTime;
@@ -392,6 +457,11 @@ public class MainActivity extends AppCompatActivity {
         });
 
         Button reset = styledButton("Reset", color("#FF6584"), Color.WHITE);
+        android.graphics.drawable.Drawable resetIcon = ContextCompat.getDrawable(this, R.drawable.ic_refresh);
+        if (resetIcon != null) {
+            resetIcon.setTint(Color.WHITE);
+            reset.setCompoundDrawablesWithIntrinsicBounds(resetIcon, null, null, null);
+        }
         reset.setOnClickListener(v -> {
             stopwatchRunning = false;
             stopwatchHandler.removeCallbacks(stopwatchRunnable);
@@ -480,6 +550,11 @@ public class MainActivity extends AppCompatActivity {
             list.addView(pickersCard, marginTop(20));
 
             Button startBtn = styledButton("Start Timer", color("#6C63FF"), Color.WHITE);
+            android.graphics.drawable.Drawable stIcon = ContextCompat.getDrawable(this, R.drawable.ic_play);
+            if (stIcon != null) {
+                stIcon.setTint(Color.WHITE);
+                startBtn.setCompoundDrawablesWithIntrinsicBounds(stIcon, null, null, null);
+            }
             startBtn.setOnClickListener(v -> {
                 int h = timerHourPicker.getValue();
                 int m = timerMinPicker.getValue();
@@ -517,6 +592,11 @@ public class MainActivity extends AppCompatActivity {
             controls.setGravity(Gravity.CENTER);
 
             Button pauseResume = styledButton(timerRunning ? "Pause" : "Resume", timerRunning ? color("#FFBE3B") : color("#6C63FF"), timerRunning ? color("#2D2D44") : Color.WHITE);
+            android.graphics.drawable.Drawable prIcon = ContextCompat.getDrawable(this, timerRunning ? R.drawable.ic_pause : R.drawable.ic_play);
+            if (prIcon != null) {
+                prIcon.setTint(timerRunning ? color("#2D2D44") : Color.WHITE);
+                pauseResume.setCompoundDrawablesWithIntrinsicBounds(prIcon, null, null, null);
+            }
             pauseResume.setOnClickListener(v -> {
                 if (timerRunning) {
                     timerTimeLeftMs = Math.max(0L, timerEndTimeMs - System.currentTimeMillis());
@@ -533,6 +613,11 @@ public class MainActivity extends AppCompatActivity {
             });
 
             Button cancelBtn = styledButton("Cancel", color("#FF6584"), Color.WHITE);
+            android.graphics.drawable.Drawable cnIcon = ContextCompat.getDrawable(this, R.drawable.ic_stop);
+            if (cnIcon != null) {
+                cnIcon.setTint(Color.WHITE);
+                cancelBtn.setCompoundDrawablesWithIntrinsicBounds(cnIcon, null, null, null);
+            }
             cancelBtn.setOnClickListener(v -> {
                 timerRunning = false;
                 timerActive = false;
@@ -673,6 +758,11 @@ public class MainActivity extends AppCompatActivity {
         card.addView(text("Permissions needed", 17, color("#2D2D44"), Typeface.BOLD));
         card.addView(text("Enable notifications, exact alarms, overlay access, and battery background access for reliable alarms.", 14, color("#6D6A80"), Typeface.NORMAL));
         Button grant = styledButton("Review permissions", color("#FFBE3B"), color("#2D2D44"));
+        android.graphics.drawable.Drawable grIcon = ContextCompat.getDrawable(this, R.drawable.ic_settings);
+        if (grIcon != null) {
+            grIcon.setTint(color("#2D2D44"));
+            grant.setCompoundDrawablesWithIntrinsicBounds(grIcon, null, null, null);
+        }
         grant.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
         card.addView(grant, marginTop(10));
         return card;
@@ -699,7 +789,7 @@ public class MainActivity extends AppCompatActivity {
         details.addView(text(formatAlarmTime(alarm), 34, primaryText, Typeface.BOLD));
         details.addView(text(alarm.getLabel(), 15, color("#6D6A80"), Typeface.NORMAL));
 
-        Switch toggle = new Switch(this);
+        MaterialSwitch toggle = new MaterialSwitch(this);
         toggle.setChecked(alarm.isEnabled());
         toggle.setContentDescription("Enable alarm " + alarm.getLabel() + " at " + formatAlarmTime(alarm));
         toggle.setOnCheckedChangeListener((CompoundButton buttonView, boolean isChecked) -> toggleAlarm(alarm, isChecked));
@@ -718,23 +808,7 @@ public class MainActivity extends AppCompatActivity {
         TextView meta = text(metaBuilder.toString(), 13, color("#6D6A80"), Typeface.NORMAL);
         card.addView(meta, marginTop(10));
 
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        actions.setGravity(Gravity.END);
-        card.addView(actions, marginTop(10));
-
-        Button test = styledButton("Test", color("#43E97B"), color("#2D2D44"));
-        test.setOnClickListener(v -> testAlarm(alarm));
-        actions.addView(test);
-
-        Button edit = styledButton("Edit", color("#6C63FF"), Color.WHITE);
-        edit.setOnClickListener(v -> openEditor(alarm.getId()));
-        actions.addView(edit, marginLeft(8));
-
-        Button delete = styledButton("Delete", color("#FF6584"), Color.WHITE);
-        delete.setOnClickListener(v -> confirmDelete(alarm));
-        actions.addView(delete, marginLeft(8));
-
+        // Tap the card to edit (and delete from within the editor); long-press for a quick delete.
         return card;
     }
 
@@ -780,16 +854,6 @@ public class MainActivity extends AppCompatActivity {
         refreshState();
     }
 
-    private void testAlarm(AlarmModel alarm) {
-        if (!AlarmScheduler.canScheduleExact(this)) {
-            Toast.makeText(this, "Grant the Exact Alarms permission to test alarms.", Toast.LENGTH_LONG).show();
-            startActivity(AlarmScheduler.exactAlarmSettingsIntent(this));
-            return;
-        }
-        AlarmScheduler.schedulePreview(this, alarm);
-        Toast.makeText(this, "Test alarm rings in a few seconds. Lock your screen to preview.", Toast.LENGTH_LONG).show();
-    }
-
     private void confirmDelete(AlarmModel alarm) {
         new AlertDialog.Builder(this)
                 .setTitle("Delete alarm?")
@@ -830,8 +894,8 @@ public class MainActivity extends AppCompatActivity {
         return text(value, sp, color("#2D2D44"), Typeface.BOLD);
     }
 
-    private TextView text(String value, int sp, int color, int style) {
-        TextView textView = new TextView(this);
+    private MaterialTextView text(String value, int sp, int color, int style) {
+        MaterialTextView textView = new MaterialTextView(this);
         textView.setText(value);
         textView.setTextSize(sp);
         textView.setTextColor(color);
@@ -839,19 +903,17 @@ public class MainActivity extends AppCompatActivity {
         return textView;
     }
 
-    private Button styledButton(String label, int bgColor, int textColor) {
-        Button button = new Button(this);
+    private MaterialButton styledButton(String label, int bgColor, int textColor) {
+        MaterialButton button = new MaterialButton(this);
         button.setText(label);
         button.setAllCaps(false);
         button.setTextColor(textColor);
+        button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(bgColor));
+        button.setCornerRadius(dp(12));
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setTextSize(13);
+        // Padding is handled by MaterialButton internally but can be tweaked
         button.setPadding(dp(16), dp(8), dp(16), dp(8));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(bgColor);
-        bg.setCornerRadius(dp(12));
-        button.setBackground(bg);
-        button.setElevation(dp(1));
         button.setStateListAnimator(null);
         return button;
     }
